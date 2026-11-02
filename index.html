@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Campus Navigation System (C / Dijkstra)</title>
+  <style>
+    /* Primitive, utilitarian HTML styling */
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 13px;
+      margin: 10px;
+      background: #f8f8f8;
+      color: #111;
+    }
+    h1 {
+      font-size: 18px;
+      margin: 0 0 4px 0;
+      color: #000;
+    }
+    .header-sub {
+      font-size: 12px;
+      color: #444;
+      margin-bottom: 8px;
+    }
+    #main-container {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    #sidebar {
+      width: 320px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    fieldset {
+      border: 1px solid #aaa;
+      padding: 8px 10px;
+      background: #fff;
+      margin: 0;
+    }
+    legend {
+      font-weight: bold;
+      font-size: 12px;
+      padding: 0 4px;
+    }
+    label {
+      font-size: 12px;
+      font-weight: bold;
+    }
+    select {
+      width: 100%;
+      padding: 4px;
+      font-size: 12px;
+      margin-top: 3px;
+      margin-bottom: 6px;
+      box-sizing: border-box;
+    }
+    button, input[type="button"] {
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .btn-primary {
+      font-weight: bold;
+      background: #e8e8e8;
+      border: 2px outset #ccc;
+    }
+    .btn-primary:active {
+      border-style: inset;
+    }
+    #map-container {
+      flex: 1;
+      background: #f0f0f0;
+      border: 1px solid #aaa;
+      padding: 0;
+      position: relative;
+      overflow: hidden;
+      height: calc(100vh - 65px);
+      min-height: 480px;
+      cursor: grab;
+      user-select: none;
+    }
+    #map-container.dragging {
+      cursor: grabbing;
+    }
+    /* Fixed 1009 x 1024 frame matching SVG coordinate space 1:1.
+       Transformed via scale and translate to fit container and pan/zoom. */
+    .map-frame {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1009px;
+      height: 1024px;
+      transform-origin: 0 0;
+      transition: transform 0.35s ease;
+      line-height: 0;
+    }
+    #campusMap {
+      display: block;
+      width: 1009px;
+      height: 1024px;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+    #mapSvg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1009px;
+      height: 1024px;
+      pointer-events: none;
+    }
+    /* Zoom control overlay buttons */
+    #zoomControls {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    #zoomControls button {
+      width: 28px;
+      height: 28px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      background: #f0f0f0;
+      border: 1px solid #888;
+      line-height: 1;
+      padding: 0;
+    }
+    #zoomControls button:hover { background: #ddd; }
+    #zoomLabel {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      z-index: 20;
+      font-size: 11px;
+      background: rgba(255,255,255,0.85);
+      border: 1px solid #aaa;
+      padding: 2px 6px;
+      color: #333;
+    }
+    #tooltip {
+      position: fixed;
+      background: #ffffcc;
+      border: 1px solid #333;
+      padding: 3px 6px;
+      font-size: 11px;
+      display: none;
+      pointer-events: none;
+      z-index: 1000;
+      color: #000;
+    }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      margin-top: 6px;
+    }
+    table.data-table th, table.data-table td {
+      border: 1px solid #bbb;
+      padding: 3px 5px;
+      text-align: left;
+    }
+    table.data-table th {
+      background: #e6e6e6;
+    }
+    .status-badge {
+      font-size: 11px;
+      padding: 2px 4px;
+      border: 1px solid #999;
+      background: #eef8ee;
+      display: inline-block;
+      margin-top: 2px;
+    }
+    .node-chip {
+      display: inline-block;
+      padding: 1px 4px;
+      margin: 1px;
+      border: 1px solid #ccc;
+      background: #fafafa;
+      font-size: 10px;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .node-chip:hover {
+      background: #e0e0e0;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Campus Navigation System</h1>
+  <div class="header-sub">
+    Engine: <b>C Programming Language</b> &bull; Algorithm: <b>Dijkstra's Shortest Path</b> &bull; Data Structure: <b>Adjacency List & Min-Heap</b>
+  </div>
+
+  <div id="main-container">
+
+    <!-- SIDEBAR CONTROLS -->
+    <div id="sidebar">
+
+      <fieldset>
+        <legend>Route Selection</legend>
+        <label for="fromSelect">Origin (A):</label><br>
+        <select id="fromSelect">
+          <option value="">-- Select Origin --</option>
+        </select>
+        
+        <label for="toSelect">Destination (B):</label><br>
+        <select id="toSelect">
+          <option value="">-- Select Destination --</option>
+        </select>
+        
+        <div style="margin-top:6px;">
+          <button class="btn-primary" type="button" onclick="navigate()">Calculate Route</button>
+          <button type="button" onclick="clearRoute()">Clear</button>
+        </div>
+      </fieldset>
+
+      <fieldset id="engineStatusFieldset">
+        <legend>System Status</legend>
+        <div id="engineStatusText" class="status-badge">
+          Checking C Server...
+        </div>
+        <div style="font-size:11px; color:#555; margin-top:4px;">
+          To run native C server: execute <code>run.bat</code> or <code>./navsys.exe</code>.
+        </div>
+      </fieldset>
+
+      <fieldset id="resultFieldset" style="display:none;">
+        <legend>Navigation Directions</legend>
+        <div id="routeSummary" style="font-weight:bold; margin-bottom:4px;"></div>
+        <div id="routeWaypoints" style="font-size:11px; color:#444; margin-bottom:6px;"></div>
+        <table class="data-table" id="routeTable">
+          <thead>
+            <tr>
+              <th style="width:22px;">#</th>
+              <th>Instruction</th>
+            </tr>
+          </thead>
+          <tbody id="routeStepsBody"></tbody>
+        </table>
+      </fieldset>
+
+      <fieldset>
+        <legend>Map Legend</legend>
+        <div style="font-size:11px; line-height:1.6;">
+          <span style="color:#008800; font-weight:bold;">&#9679; [A] Start Location</span><br>
+          <span style="color:#cc0000; font-weight:bold;">&#9679; [B] Destination</span><br>
+          <span style="color:#d9531e; font-weight:bold;">&#9658; Directional Arrow</span><br>
+          <span style="color:#004080; font-weight:bold;">&#9675; Location Node</span> (click on map to pick)
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Direct Location Directory</legend>
+        <div style="font-size:10px; color:#555; margin-bottom:4px;">Click any location code to set as destination:</div>
+        <div id="locationsDirectory" style="max-height:110px; overflow-y:auto;"></div>
+      </fieldset>
+
+      <details>
+        <summary style="font-weight:bold; cursor:pointer; font-size:11px; padding:4px 0;">View C Source Code (navsys.c)</summary>
+        <div style="font-size:11px; color:#333; margin-top:4px;">Core DSA & Dijkstra implementation compiled in C:</div>
+        <pre id="cSourceDisplay" style="max-height:180px; overflow:auto; background:#fff; border:1px solid #ccc; font-size:10px; padding:6px; white-space:pre-wrap;">Loading navsys.c...</pre>
+      </details>
+
+    </div>
+
+    <!-- MAP CANVAS AREA -->
+    <div id="map-container">
+      <div class="map-frame" id="mapFrame">
+        <img id="campusMap" src="campus_map.jpg" alt="Campus Map" draggable="false">
+        <svg id="mapSvg" viewBox="0 0 1009 1024" preserveAspectRatio="none">
+          <g id="edgeLayer"></g>
+          <g id="pathLayer"></g>
+          <g id="arrowLayer"></g>
+          <g id="nodeLayer"></g>
+        </svg>
+      </div>
+      <!-- Zoom Controls (always on top of map, outside the transformed frame) -->
+      <div id="zoomControls">
+        <button onclick="manualZoom(1.25)" title="Zoom In">+</button>
+        <button onclick="manualZoom(0.8)" title="Zoom Out">&minus;</button>
+        <button onclick="resetMapView()" title="Reset View" style="font-size:11px;">R</button>
+      </div>
+      <div id="zoomLabel">100% &bull; <span style="color:#666;">Scroll: Zoom | Drag: Pan</span></div>
+    </div>
+
+  </div>
+
+  <div id="tooltip"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// CAMPUS DATA: Nodes & Edges (1009 x 1024 coordinate space)
+// ════════════════════════════════════════════════════════════════
+const NODES = {
+  // Core Academic
+  "HLC":   { x: 358, y: 388, label: "Hendricks Leadership Center",   cat: "academic"  },
+  "JW":    { x: 383, y: 310, label: "JW Building",                   cat: "academic"  },
+  "TSF":   { x: 415, y: 255, label: "TSF Building",                  cat: "academic"  },
+  "BW":    { x: 276, y: 385, label: "BW Building",                   cat: "academic"  },
+  "FH":    { x: 510, y: 448, label: "FH Building",                   cat: "academic"  },
+  "CS":    { x: 597, y: 344, label: "CS Building",                   cat: "academic"  },
+  "WA":    { x: 335, y: 540, label: "WA Hall",                       cat: "academic"  },
+  "JM":    { x: 437, y: 550, label: "JM Hall",                       cat: "academic"  },
+  "ATC":   { x: 843, y: 710, label: "ATC Building",                  cat: "academic"  },
+  "HCDC":  { x: 737, y: 712, label: "Health & Counseling Center",    cat: "service"   },
+  "JP":    { x: 651, y: 130, label: "JP Building",                   cat: "academic"  },
+
+  // Residence
+  "GP":    { x: 207, y: 510, label: "Grace Place",                   cat: "residence" },
+  "GH":    { x: 527, y: 668, label: "Gleason Hall",                  cat: "residence" },
+  "MH":    { x: 577, y: 748, label: "Metz Hall",                     cat: "residence" },
+  "JETS":  { x: 648, y: 808, label: "JETS Hall",                     cat: "residence" },
+  "CV":    { x: 337, y: 845, label: "Central Village",               cat: "residence" },
+  "JAS":   { x: 615, y: 460, label: "JAS Hall",                      cat: "residence" },
+  "EIC":   { x: 695, y: 486, label: "EIC Building",                  cat: "residence" },
+  "AO":    { x: 737, y: 558, label: "AO Building",                   cat: "service"   },
+
+  // Jets Village
+  "JVA":   { x: 662, y: 598, label: "Jets Village A",                cat: "residence" },
+  "JVB":   { x: 648, y: 583, label: "Jets Village B",                cat: "residence" },
+  "JVC":   { x: 658, y: 628, label: "Jets Village C",                cat: "residence" },
+  "JVD":   { x: 631, y: 578, label: "Jets Village D",                cat: "residence" },
+  "JVE":   { x: 645, y: 613, label: "Jets Village E",                cat: "residence" },
+  "JVF":   { x: 629, y: 613, label: "Jets Village F",                cat: "residence" },
+
+  // Parking
+  "P1":    { x: 513, y: 358, label: "Parking Lot P1",               cat: "parking"   },
+  "P2":    { x: 460, y: 348, label: "Parking Lot P2",               cat: "parking"   },
+  "P3":    { x: 502, y: 308, label: "Parking Lot P3",               cat: "parking"   },
+  "P4":    { x: 491, y: 263, label: "Parking Lot P4",               cat: "parking"   },
+  "G1":    { x: 313, y: 660, label: "Parking Lot G1",               cat: "parking"   },
+  "G2":    { x: 313, y: 708, label: "Parking Lot G2",               cat: "parking"   },
+  "H1":    { x: 398, y: 622, label: "Parking Lot H1",               cat: "parking"   },
+  "H2":    { x: 398, y: 672, label: "Parking Lot H2",               cat: "parking"   },
+  "H3":    { x: 398, y: 706, label: "Parking Lot H3",               cat: "parking"   },
+  "H4":    { x: 400, y: 740, label: "Parking Lot H4",               cat: "parking"   },
+  "J1":    { x: 634, y: 808, label: "Parking Lot J1",               cat: "parking"   },
+  "J2":    { x: 581, y: 800, label: "Parking Lot J2",               cat: "parking"   },
+  "J3":    { x: 513, y: 826, label: "Parking Lot J3",               cat: "parking"   },
+  "K":     { x: 644, y: 757, label: "Parking Lot K",                cat: "parking"   },
+  "L":     { x: 744, y: 574, label: "Parking Lot L",                cat: "parking"   },
+  "M1":    { x: 711, y: 463, label: "Parking Lot M1",               cat: "parking"   },
+  "M2":    { x: 711, y: 493, label: "Parking Lot M2",               cat: "parking"   },
+  "N":     { x: 609, y: 370, label: "Parking Lot N",                cat: "parking"   },
+
+  // Sports & Recreation
+  "SoccerField":   { x: 852, y: 375, label: "Soccer Field",         cat: "sports"    },
+  "SoftballField": { x: 802, y: 112, label: "Softball Field",       cat: "sports"    },
+  "BaseballField": { x: 775, y: 205, label: "Baseball Field",       cat: "sports"    },
+  "DiscGolf":      { x: 620, y: 893, label: "Disc Golf Course",     cat: "sports"    },
+  "Basketball":    { x: 722, y: 820, label: "Outdoor Basketball",   cat: "sports"    },
+  "Volleyball":    { x: 720, y: 844, label: "Sand Volleyball",      cat: "sports"    },
+
+  // Landmarks
+  "ZennethPond":   { x: 164, y: 148, label: "Zenneth Pond",         cat: "landmark"  },
+  "FlagMemorial":  { x: 270, y: 152, label: "Flag Memorial",        cat: "landmark"  },
+  "WaterTower":    { x: 862, y: 793, label: "Water Tower",          cat: "landmark"  },
+
+  // Junctions
+  "INT_A": { x: 418, y: 200, label: "Junction (Jets Trail W)",      cat: "junction"  },
+  "INT_B": { x: 570, y: 200, label: "Junction (Jets Trail E)",      cat: "junction"  },
+  "INT_C": { x: 410, y: 480, label: "Junction (Central)",           cat: "junction"  },
+  "INT_D": { x: 550, y: 480, label: "Junction (East-Central)",      cat: "junction"  },
+  "INT_E": { x: 650, y: 480, label: "Junction (East Loop)",         cat: "junction"  },
+  "INT_F": { x: 710, y: 600, label: "Junction (SE Loop)",           cat: "junction"  },
+  "INT_G": { x: 490, y: 600, label: "Junction (South-Central)",     cat: "junction"  },
+  "INT_H": { x: 350, y: 750, label: "Junction (SW)",                cat: "junction"  },
+  "INT_I": { x: 490, y: 750, label: "Junction (South)",             cat: "junction"  },
+  "INT_J": { x: 220, y: 380, label: "Junction (West Loop)",         cat: "junction"  },
+  "INT_K": { x: 220, y: 550, label: "Junction (West-Mid)",          cat: "junction"  },
+  "INT_L": { x: 750, y: 380, label: "Junction (East Road)",         cat: "junction"  },
+  "INT_M": { x: 750, y: 700, label: "Junction (SE Corner)",         cat: "junction"  }
+};
+
+const EDGES = [
+  ["INT_A", "INT_B", 152],
+  ["INT_A", "TSF", 60],  ["INT_A", "JW", 105], ["INT_A", "FlagMemorial", 120],
+  ["INT_B", "JP", 90],   ["INT_B", "CS", 140],  ["INT_B", "P3", 80],
+  ["FlagMemorial", "ZennethPond", 110],
+  ["ZennethPond", "INT_J", 240],
+
+  ["TSF", "JW", 58], ["JW", "P2", 50], ["JW", "P3", 75], ["JW", "P4", 70],
+  ["P4", "INT_B", 80], ["P3", "INT_B", 85],
+  ["TSF", "P4", 55],
+
+  ["JW", "HLC", 90],  ["HLC", "BW", 80], ["HLC", "FH", 100],
+  ["HLC", "WA", 100], ["HLC", "INT_C", 60],
+  ["BW", "INT_J", 90], ["BW", "GP", 120],
+  ["FH", "JAS", 105], ["FH", "P1", 55],  ["FH", "P2", 65],
+  ["P1", "CS", 100],  ["P1", "N", 50],   ["P2", "INT_C", 70],
+  ["CS", "N", 55],    ["N", "INT_D", 60],
+
+  ["CS", "INT_L", 165], ["JAS", "EIC", 90], ["JAS", "INT_D", 80],
+  ["EIC", "INT_E", 55], ["EIC", "M1", 30],  ["EIC", "M2", 45],
+  ["INT_E", "INT_L", 65], ["INT_L", "SoccerField", 110],
+  ["INT_L", "BaseballField", 185], ["BaseballField", "SoftballField", 95],
+  ["SoftballField", "JP", 120],   ["JP", "INT_B", 180],
+
+  ["INT_J", "INT_K", 170], ["INT_J", "BW", 90],
+  ["INT_K", "GP", 100],    ["GP", "WA", 140],
+  ["INT_K", "G1", 120],    ["G1", "G2", 50],
+
+  ["WA", "JM", 100],   ["JM", "INT_G", 85],
+  ["WA", "INT_C", 85], ["INT_C", "H1", 65],
+  ["JM", "H1", 70],    ["H1", "H2", 52],
+  ["H2", "H3", 40],    ["H3", "H4", 42],
+  ["H4", "INT_H", 80], ["INT_H", "CV", 70],
+  ["CV", "J3", 110],   ["J3", "INT_I", 80],
+
+  ["INT_G", "GH", 75],    ["GH", "MH", 90],
+  ["MH", "JETS", 75],     ["JETS", "J1", 60],
+  ["J1", "K", 55],        ["K", "HCDC", 95],
+  ["HCDC", "ATC", 110],   ["ATC", "WaterTower", 60],
+  ["ATC", "INT_M", 60],   ["INT_M", "INT_F", 105],
+  ["INT_F", "AO", 80],    ["AO", "L", 30],
+  ["INT_F", "INT_E", 155],
+  ["INT_F", "EIC", 180],
+
+  ["JVA", "JVB", 28],  ["JVB", "JVD", 22],
+  ["JVC", "JVE", 20],  ["JVE", "JVF", 18],
+  ["JVD", "JVF", 22],  ["JVA", "JVC", 30],
+  ["JVB", "INT_G", 80], ["JVD", "INT_G", 85],
+  ["JVF", "INT_G", 70], ["JVC", "GH", 65],
+  ["JVA", "AO", 115],
+
+  ["G2", "INT_H", 70],  ["INT_H", "H4", 80],
+  ["J2", "JETS", 50],   ["J2", "J3", 70],
+  ["J1", "JETS", 62],
+
+  ["DiscGolf", "INT_I", 130], ["DiscGolf", "J3", 160],
+  ["Basketball", "JETS", 80], ["Volleyball", "Basketball", 30],
+  ["Basketball", "K", 80],
+
+  ["INT_D", "INT_C", 145], ["INT_D", "INT_G", 130],
+  ["INT_G", "INT_I", 165], ["INT_I", "INT_H", 170],
+  ["INT_K", "INT_J", 170],
+  ["L", "INT_F", 55],
+  ["M1", "INT_L", 45], ["M2", "INT_L", 55],
+];
+
+// ════════════════════════════════════════════════════════════════
+// C ENGINE COMMUNICATION & OFFLINE DIJKSTRA FALLBACK
+// ════════════════════════════════════════════════════════════════
+let hasCServer = false;
+
+async function checkCServer() {
+  const statusEl = document.getElementById('engineStatusText');
+  try {
+    const res = await fetch('/api/nodes', { method: 'GET', cache: 'no-store' });
+    if (res.ok) {
+      hasCServer = true;
+      statusEl.innerHTML = `<b style="color:#007700;">CONNECTED</b> &bull; C Native HTTP Engine (port ${location.port || '8000'})`;
+      statusEl.style.background = '#e6ffe6';
+      loadCSource();
+      return;
+    }
+  } catch (e) {
+    // Server not running on current host
+  }
+  hasCServer = false;
+  statusEl.innerHTML = '<b style="color:#aa5500;">STANDALONE MODE</b> &bull; Launch <code>run.bat</code> for Native C Engine';
+  statusEl.style.background = '#fff8e6';
+}
+
+async function loadCSource() {
+  try {
+    const res = await fetch('/navsys.c');
+    if (res.ok) {
+      const src = await res.text();
+      document.getElementById('cSourceDisplay').textContent = src;
+    }
+  } catch(e) {}
+}
+
+// Client-side fallback Dijkstra (exact replica of the C algorithm)
+function localDijkstra(src, dst) {
+  const adj = {};
+  for (const id in NODES) adj[id] = [];
+  for (const [u, v, w] of EDGES) {
+    if (adj[u] && adj[v]) {
+      adj[u].push({ to: v, weight: w });
+      adj[v].push({ to: u, weight: w });
+    }
+  }
+
+  const dist = {};
+  const prev = {};
+  const visited = new Set();
+  for (const id in NODES) dist[id] = Infinity;
+  dist[src] = 0;
+
+  // Simple priority queue loop
+  while (true) {
+    let u = null;
+    let minDist = Infinity;
+    for (const id in NODES) {
+      if (!visited.has(id) && dist[id] < minDist) {
+        minDist = dist[id];
+        u = id;
+      }
+    }
+    if (u === null || u === dst) break;
+    visited.add(u);
+
+    for (const edge of adj[u]) {
+      const v = edge.to;
+      const nd = dist[u] + edge.weight;
+      if (nd < dist[v]) {
+        dist[v] = nd;
+        prev[v] = u;
+      }
+    }
+  }
+
+  if (dist[dst] === Infinity) return null;
+
+  const path = [];
+  let curr = dst;
+  while (curr) {
+    path.push(curr);
+    curr = prev[curr];
+  }
+  path.reverse();
+
+  const coords = path.map(id => ({ id, label: NODES[id].label, x: NODES[id].x, y: NODES[id].y }));
+  const steps = [];
+  for (let i = 0; i < path.length; i++) {
+    const id = path[i];
+    if (i === 0) {
+      steps.push(`Start at ${id} (${NODES[id].label})`);
+    } else {
+      const pId = path[i - 1];
+      const dx = NODES[id].x - NODES[pId].x;
+      const dy = NODES[id].y - NODES[pId].y;
+      const deg = Math.atan2(dy, dx) * 180 / Math.PI;
+      let dir = "Northeast";
+      if (deg > -22.5 && deg <= 22.5) dir = "East";
+      else if (deg > 22.5 && deg <= 67.5) dir = "Southeast";
+      else if (deg > 67.5 && deg <= 112.5) dir = "South";
+      else if (deg > 112.5 && deg <= 157.5) dir = "Southwest";
+      else if (deg > 157.5 || deg <= -157.5) dir = "West";
+      else if (deg > -157.5 && deg <= -112.5) dir = "Northwest";
+      else if (deg > -112.5 && deg <= -67.5) dir = "North";
+      const seg = Math.round(Math.sqrt(dx*dx + dy*dy) * 0.8);
+      if (i === path.length - 1) {
+        steps.push(`Head ${dir} (~${seg}m) to ${id} (${NODES[id].label}) [Arrive at Destination]`);
+      } else {
+        steps.push(`Head ${dir} (~${seg}m) toward ${id} (${NODES[id].label})`);
+      }
+    }
+  }
+
+  return {
+    found: 1,
+    from: src,
+    to: dst,
+    distance: dist[dst],
+    count: path.length,
+    path,
+    coords,
+    steps
+  };
+}
+
+// ════════════════════════════════════════════════════════════════
+// DRAWING NODES ON SVG (Small non-overlapping markers)
+// ════════════════════════════════════════════════════════════════
+function initUI() {
+  const fromSel = document.getElementById('fromSelect');
+  const toSel = document.getElementById('toSelect');
+  const directory = document.getElementById('locationsDirectory');
+  const nodeLayer = document.getElementById('nodeLayer');
+
+  const categories = {
+    academic: "Academic Buildings",
+    residence: "Residential Halls",
+    service: "Campus Services",
+    parking: "Parking Lots",
+    sports: "Athletics & Recreation",
+    landmark: "Landmarks"
+  };
+
+  for (const cat in categories) {
+    const optgroup1 = document.createElement('optgroup');
+    optgroup1.label = categories[cat];
+    const optgroup2 = document.createElement('optgroup');
+    optgroup2.label = categories[cat];
+
+    for (const id in NODES) {
+      if (NODES[id].cat === cat) {
+        optgroup1.appendChild(new Option(`${id} - ${NODES[id].label}`, id));
+        optgroup2.appendChild(new Option(`${id} - ${NODES[id].label}`, id));
+
+        const chip = document.createElement('span');
+        chip.className = 'node-chip';
+        chip.textContent = id;
+        chip.title = NODES[id].label;
+        chip.onclick = () => {
+          document.getElementById('toSelect').value = id;
+          if (document.getElementById('fromSelect').value) navigate();
+        };
+        directory.appendChild(chip);
+      }
+    }
+
+    if (optgroup1.children.length > 0) {
+      fromSel.appendChild(optgroup1);
+      toSel.appendChild(optgroup2);
+    }
+  }
+
+  // Draw node markers on map
+  // Important: Small dots (r=3.5) with high-contrast outline so they do NOT cover text!
+  for (const id in NODES) {
+    const data = NODES[id];
+    if (data.cat === 'junction') continue;
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.style.cursor = 'pointer';
+    g.style.pointerEvents = 'all';
+
+    // Invisible larger hit area for easy clicking
+    const hit = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    hit.setAttribute('cx', data.x);
+    hit.setAttribute('cy', data.y);
+    hit.setAttribute('r', '9');
+    hit.setAttribute('fill', 'transparent');
+    g.appendChild(hit);
+
+    // Visible small marker: thin dark circle with solid inner dot
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', data.x);
+    circle.setAttribute('cy', data.y);
+    circle.setAttribute('r', '3.5');
+    circle.setAttribute('fill', '#ffffff');
+    circle.setAttribute('stroke', '#004080');
+    circle.setAttribute('stroke-width', '1.5');
+    g.appendChild(circle);
+
+    // Tiny center pin
+    const center = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    center.setAttribute('cx', data.x);
+    center.setAttribute('cy', data.y);
+    center.setAttribute('r', '1.5');
+    center.setAttribute('fill', '#004080');
+    g.appendChild(center);
+
+    // Hover tooltip
+    g.addEventListener('mouseenter', (e) => {
+      circle.setAttribute('r', '5.5');
+      circle.setAttribute('stroke', '#cc0000');
+      showTooltip(`${id}: ${data.label}`, e);
+    });
+    g.addEventListener('mouseleave', () => {
+      circle.setAttribute('r', '3.5');
+      circle.setAttribute('stroke', '#004080');
+      hideTooltip();
+    });
+
+    // Click to select From/To (prevented if user was dragging/panning the map)
+    g.addEventListener('click', () => {
+      if (wasDragging) return;
+      const from = document.getElementById('fromSelect');
+      const to = document.getElementById('toSelect');
+      if (!from.value || (from.value && to.value)) {
+        from.value = id;
+        to.value = '';
+      } else {
+        to.value = id;
+        navigate();
+      }
+    });
+
+    nodeLayer.appendChild(g);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// ROUTE PATH & ARROW DRAWING
+// ════════════════════════════════════════════════════════════════
+function drawRouteOnMap(routeData) {
+  const pathLayer = document.getElementById('pathLayer');
+  const arrowLayer = document.getElementById('arrowLayer');
+  pathLayer.innerHTML = '';
+  arrowLayer.innerHTML = '';
+
+  if (!routeData || !routeData.coords || routeData.coords.length < 2) return;
+
+  const coords = routeData.coords;
+
+  // 1. Draw route line segments
+  let d = `M ${coords[0].x} ${coords[0].y}`;
+  for (let i = 1; i < coords.length; i++) {
+    d += ` L ${coords[i].x} ${coords[i].y}`;
+  }
+
+  // Black outline line
+  const outline = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  outline.setAttribute('d', d);
+  outline.setAttribute('fill', 'none');
+  outline.setAttribute('stroke', '#000000');
+  outline.setAttribute('stroke-width', '4');
+  outline.setAttribute('stroke-linejoin', 'round');
+  pathLayer.appendChild(outline);
+
+  // Main vibrant yellow/orange path line
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  line.setAttribute('d', d);
+  line.setAttribute('fill', 'none');
+  line.setAttribute('stroke', '#ffaa00');
+  line.setAttribute('stroke-width', '2.5');
+  line.setAttribute('stroke-linejoin', 'round');
+  pathLayer.appendChild(line);
+
+  // 2. Draw directional arrows along each segment
+  for (let i = 0; i < coords.length - 1; i++) {
+    const p1 = coords[i];
+    const p2 = coords[i + 1];
+
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const segLen = Math.sqrt(dx * dx + dy * dy);
+    if (segLen < 10) continue;
+
+    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+    // Place arrow in the middle of the segment
+    const midX = p1.x + dx * 0.55;
+    const midY = p1.y + dy * 0.55;
+
+    drawArrow(arrowLayer, midX, midY, angle);
+  }
+
+  // 3. Mark Start [A] and End [B] clearly
+  drawWaypointMarker(pathLayer, coords[0].x, coords[0].y, 'A', '#009900');
+  drawWaypointMarker(pathLayer, coords[coords.length - 1].x, coords[coords.length - 1].y, 'B', '#cc0000');
+}
+
+function drawArrow(layer, x, y, angleDeg) {
+  const size = 7;
+  const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  poly.setAttribute('points', `${-size},${-size/1.6} ${size},0 ${-size},${size/1.6}`);
+  poly.setAttribute('fill', '#d9531e');
+  poly.setAttribute('stroke', '#000000');
+  poly.setAttribute('stroke-width', '1');
+  poly.setAttribute('transform', `translate(${x},${y}) rotate(${angleDeg})`);
+  layer.appendChild(poly);
+}
+
+function drawWaypointMarker(layer, x, y, label, color) {
+  // Pin ring
+  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  circle.setAttribute('cx', x);
+  circle.setAttribute('cy', y);
+  circle.setAttribute('r', '7');
+  circle.setAttribute('fill', color);
+  circle.setAttribute('stroke', '#ffffff');
+  circle.setAttribute('stroke-width', '1.5');
+  layer.appendChild(circle);
+
+  // Text label [A] or [B] placed just above the node so it doesn't cover map text
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', x - 9);
+  rect.setAttribute('y', y - 22);
+  rect.setAttribute('width', '18');
+  rect.setAttribute('height', '13');
+  rect.setAttribute('fill', color);
+  rect.setAttribute('stroke', '#000');
+  rect.setAttribute('stroke-width', '1');
+  layer.appendChild(rect);
+
+  const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  text.setAttribute('x', x);
+  text.setAttribute('y', y - 12);
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('font-size', '9');
+  text.setAttribute('font-weight', 'bold');
+  text.setAttribute('fill', '#ffffff');
+  text.textContent = label;
+  layer.appendChild(text);
+}
+
+// ════════════════════════════════════════════════════════════════
+// NAVIGATION ACTION
+// ════════════════════════════════════════════════════════════════
+async function navigate() {
+  const from = document.getElementById('fromSelect').value;
+  const to = document.getElementById('toSelect').value;
+
+  if (!from || !to) {
+    alert("Please select both Origin (A) and Destination (B).");
+    return;
+  }
+  if (from === to) {
+    alert("Origin and Destination are the same place.");
+    return;
+  }
+
+  let routeData = null;
+
+  // 1. Try C HTTP API if available
+  if (hasCServer) {
+    try {
+      const res = await fetch(`/api/route?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+      if (res.ok) {
+        routeData = await res.json();
+      }
+    } catch(e) {
+      console.warn("Failed fetching from C server, falling back.", e);
+    }
+  }
+
+  // 2. Fallback to local Dijkstra if C server not reachable
+  if (!routeData || !routeData.found) {
+    routeData = localDijkstra(from, to);
+  }
+
+  if (!routeData || !routeData.found) {
+    alert(`No path found between ${from} and ${to}.`);
+    return;
+  }
+
+  // Display results and zoom map to path
+  drawRouteOnMap(routeData);
+  displayResults(routeData);
+  // Wait one animation frame so the route is painted before we read dimensions
+  requestAnimationFrame(() => zoomToPath(routeData.coords));
+}
+
+function displayResults(data) {
+  const panel = document.getElementById('resultFieldset');
+  const summary = document.getElementById('routeSummary');
+  const waypoints = document.getElementById('routeWaypoints');
+  const tbody = document.getElementById('routeStepsBody');
+
+  panel.style.display = 'block';
+  summary.innerHTML = `${data.from} &rarr; ${data.to} &nbsp; (~${data.distance} meters)`;
+  waypoints.textContent = `Route: ${data.path.join(' \u2192 ')}`;
+
+  tbody.innerHTML = '';
+  data.steps.forEach((step, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight:bold; color:#555;">${idx + 1}</td>
+      <td>${step}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function clearRoute() {
+  document.getElementById('fromSelect').value = '';
+  document.getElementById('toSelect').value = '';
+  document.getElementById('resultFieldset').style.display = 'none';
+  document.getElementById('pathLayer').innerHTML = '';
+  document.getElementById('arrowLayer').innerHTML = '';
+  _hasCustomRouteZoom = false;
+  resetMapView();
+}
+
+// ════════════════════════════════════════════════════════════════
+// MAP ZOOM & PAN (CSS transform on #mapFrame)
+// SVG coordinate space: 1009 x 1024
+// ════════════════════════════════════════════════════════════════
+const SVG_W = 1009;
+const SVG_H = 1024;
+let _curScale = 1;
+let _curTx = 0;  // translate X in px (container px space)
+let _curTy = 0;  // translate Y in px
+
+let isDragging = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let dragStartTx = 0;
+let dragStartTy = 0;
+let wasDragging = false;
+
+let _hasCustomRouteZoom = false;
+
+function applyTransform(scale, tx, ty, animate) {
+  const frame = document.getElementById('mapFrame');
+  _curScale = scale;
+  _curTx = tx;
+  _curTy = ty;
+  frame.style.transition = animate ? 'transform 0.35s ease' : 'none';
+  frame.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  frame.style.transformOrigin = '0 0';
+  document.getElementById('zoomLabel').innerHTML = `${Math.round(scale * 100)}% &bull; <span style="color:#666;">Scroll: Zoom | Drag: Pan</span>`;
+}
+
+function fitMapToContainer(animate = false) {
+  const container = document.getElementById('map-container');
+  if (!container) return;
+  const cw = container.clientWidth;
+  const ch = container.clientHeight;
+  if (!cw || !ch) return;
+
+  // Scale so the full 1009x1024 campus map fits completely with breathing room
+  const pad = 12;
+  const scale = Math.min((cw - pad * 2) / SVG_W, (ch - pad * 2) / SVG_H);
+  const clampedScale = Math.min(3.0, Math.max(0.15, scale));
+
+  // Center horizontally and vertically inside the container
+  const tx = (cw - SVG_W * clampedScale) / 2;
+  const ty = (ch - SVG_H * clampedScale) / 2;
+
+  applyTransform(clampedScale, tx, ty, animate);
+}
+
+function resetMapView() {
+  _hasCustomRouteZoom = false;
+  fitMapToContainer(true);
+}
+
+function manualZoom(factor) {
+  const container = document.getElementById('map-container');
+  const cw = container.clientWidth;
+  const ch = container.clientHeight;
+  // Zoom around container centre
+  const cx = cw / 2;
+  const cy = ch / 2;
+  const newScale = Math.min(8, Math.max(0.2, _curScale * factor));
+  const newTx = cx - (cx - _curTx) * (newScale / _curScale);
+  const newTy = cy - (cy - _curTy) * (newScale / _curScale);
+  applyTransform(newScale, newTx, newTy, true);
+}
+
+// ════════════════════════════════════════════════════════════════
+// MOUSE DRAG & SCROLL ZOOM CONTROLS FOR PC
+// ════════════════════════════════════════════════════════════════
+function initMapPanZoomControls() {
+  const container = document.getElementById('map-container');
+
+  // Mouse Down - Begin Dragging
+  container.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return; // Primary left button only
+    isDragging = true;
+    wasDragging = false;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    dragStartTx = _curTx;
+    dragStartTy = _curTy;
+  });
+
+  // Mouse Move - Pan map in real time (immediate 60fps response)
+  window.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      if (!wasDragging) {
+        wasDragging = true;
+        container.classList.add('dragging');
+      }
+      _curTx = dragStartTx + dx;
+      _curTy = dragStartTy + dy;
+      applyTransform(_curScale, _curTx, _curTy, false);
+    }
+  });
+
+  // Mouse Up - End Dragging
+  window.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      container.classList.remove('dragging');
+      // Delay resetting wasDragging so clicking nodes while dragging is suppressed
+      setTimeout(() => { wasDragging = false; }, 80);
+    }
+  });
+
+  // Mouse Wheel - Smooth Zoom Centered on the Cursor
+  container.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = container.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const factor = e.deltaY < 0 ? 1.15 : 0.87;
+    const newScale = Math.min(8, Math.max(0.3, _curScale * factor));
+    if (newScale === _curScale) return;
+
+    // Zoom anchored at the exact mouse cursor location
+    const newTx = mouseX - (mouseX - _curTx) * (newScale / _curScale);
+    const newTy = mouseY - (mouseY - _curTy) * (newScale / _curScale);
+    applyTransform(newScale, newTx, newTy, false);
+  }, { passive: false });
+
+  // Touch Support (for laptop touchscreens or trackpads)
+  let touchStartDist = 0;
+  let touchStartScale = 1;
+  container.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      isDragging = true;
+      wasDragging = false;
+      dragStartX = e.touches[0].clientX;
+      dragStartY = e.touches[0].clientY;
+      dragStartTx = _curTx;
+      dragStartTy = _curTy;
+    } else if (e.touches.length === 2) {
+      isDragging = false;
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      touchStartDist = Math.hypot(dx, dy);
+      touchStartScale = _curScale;
+    }
+  }, { passive: true });
+
+  container.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 1 && isDragging) {
+      const dx = e.touches[0].clientX - dragStartX;
+      const dy = e.touches[0].clientY - dragStartY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        wasDragging = true;
+        _curTx = dragStartTx + dx;
+        _curTy = dragStartTy + dy;
+        applyTransform(_curScale, _curTx, _curTy, false);
+      }
+    } else if (e.touches.length === 2 && touchStartDist > 0) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      const factor = dist / touchStartDist;
+      const newScale = Math.min(8, Math.max(0.3, touchStartScale * factor));
+      applyTransform(newScale, _curTx, _curTy, false);
+    }
+  }, { passive: true });
+
+  container.addEventListener('touchend', () => {
+    isDragging = false;
+    touchStartDist = 0;
+    setTimeout(() => { wasDragging = false; }, 80);
+  });
+}
+
+/**
+ * Zoom & pan the map to tightly fit the route path.
+ *
+ * Fixed frame coordinate space is 1009 x 1024 (1:1 with SVG viewBox).
+ */
+function zoomToPath(coords) {
+  if (!coords || coords.length === 0) return;
+  _hasCustomRouteZoom = true;
+
+  const container = document.getElementById('map-container');
+  if (!container) return;
+  const cw = container.clientWidth;
+  const ch = container.clientHeight;
+  if (!cw || !ch) return;
+
+  // 1. Bounding box in SVG / image coordinates
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const pt of coords) {
+    if (pt.x < minX) minX = pt.x;
+    if (pt.y < minY) minY = pt.y;
+    if (pt.x > maxX) maxX = pt.x;
+    if (pt.y > maxY) maxY = pt.y;
+  }
+  // Inflate single-point paths
+  if (minX === maxX) { minX -= 60; maxX += 60; }
+  if (minY === maxY) { minY -= 60; maxY += 60; }
+
+  // 2. Add 20% margin + 25px breathing room
+  const padX = (maxX - minX) * 0.20 + 25;
+  const padY = (maxY - minY) * 0.20 + 25;
+  minX = Math.max(0,     minX - padX);
+  maxX = Math.min(SVG_W, maxX + padX);
+  minY = Math.max(0,     minY - padY);
+  maxY = Math.min(SVG_H, maxY + padY);
+
+  const bboxW = maxX - minX;
+  const bboxH = maxY - minY;
+
+  // 3. Scale to fit within container
+  const rawScale = Math.min((cw - 30) / bboxW, (ch - 30) / bboxH);
+  const scale = Math.min(4.0, Math.max(0.3, rawScale));
+
+  // 4. Center of the bbox in frame pixels
+  const cx_fp = (minX + maxX) / 2;
+  const cy_fp = (minY + maxY) / 2;
+
+  // 5. Center in visible container
+  const tx = cw / 2 - cx_fp * scale;
+  const ty = ch / 2 - cy_fp * scale;
+
+  applyTransform(scale, tx, ty, true);
+}
+
+function showTooltip(text, evt) {
+  const tip = document.getElementById('tooltip');
+  tip.textContent = text;
+  tip.style.left = (evt.clientX + 12) + 'px';
+  tip.style.top = (evt.clientY + 12) + 'px';
+  tip.style.display = 'block';
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').style.display = 'none';
+}
+
+// ════════════════════════════════════════════════════════════════
+// INITIALIZATION
+// ════════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  initUI();
+  initMapPanZoomControls();
+  checkCServer();
+  // Fit full map to container immediately on load
+  requestAnimationFrame(() => fitMapToContainer(false));
+  setTimeout(() => fitMapToContainer(false), 150);
+});
+
+window.addEventListener('resize', () => {
+  if (!_hasCustomRouteZoom) {
+    fitMapToContainer(false);
+  }
+});
+</script>
+
+</body>
+</html>
