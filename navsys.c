@@ -30,6 +30,11 @@
 #define PI 3.14159265358979323846
 
 
+
+//DSA / DATA STRUCTURES SECTION
+// this part defines the campus graph and the supporting data
+// structures used by the navigation algorithms.
+
 typedef struct {
     char id[16];
     char label[64];
@@ -63,7 +68,11 @@ static int g_node_count = 0;
 static AdjList g_adj[MAX_NODES];
 
 
- // MIN-HEAP PRIORITY QUEUE IMPLEMENTATION
+
+// DSA / PRIORITY QUEUE IMPLEMENTATION
+// This min-heap is used by the shortest-path algorithm to always
+// process the next closest node efficiently.
+
 
 static void heap_init(MinHeap* h) {
     h->size = 0;
@@ -351,8 +360,11 @@ void init_campus_graph(void) {
     add_edge("M2", "INT_L", 55);
 }
 
- //DIJKSTRA'S SHORTEST PATH ALGORITHM IN C
-
+// ============================================================
+// ALGORITHM SECTION: DIJKSTRA SHORTEST PATH
+// This is the core graph algorithm used to compute the shortest
+// route between two campus locations.
+// ============================================================
 EXPORT int dijkstra(int src_idx, int dst_idx, int* out_path, int* out_dist) {
     if (src_idx < 0 || src_idx >= g_node_count || dst_idx < 0 || dst_idx >= g_node_count) {
         return 0;
